@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 interface AlbumInfo {
   dir: string;
@@ -23,6 +24,12 @@ export function Albums({ blogDir }: Props) {
     });
   }, [blogDir]);
 
+  const getCoverUrl = (album: AlbumInfo) => {
+    if (!album.cover) return null;
+    const coverPath = `${blogDir}/albums/${album.dir}/${album.cover}`;
+    return convertFileSrc(coverPath);
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-xl font-medium mb-4">相册列表</h2>
@@ -36,19 +43,32 @@ export function Albums({ blogDir }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {albums.map((album) => (
-            <mdui-card key={album.dir} class="p-4">
-              <div className="flex items-center gap-3">
-                <mdui-icon name="photo_library" class="text-2xl"></mdui-icon>
-                <div>
+          {albums.map((album) => {
+            const coverUrl = getCoverUrl(album);
+            return (
+              <mdui-card key={album.dir} class="overflow-hidden">
+                {coverUrl ? (
+                  <div className="w-full h-40 overflow-hidden">
+                    <img
+                      src={coverUrl}
+                      alt={album.name || album.dir}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                    <mdui-icon name="photo_library" style={{ fontSize: "48px", opacity: 0.3 }}></mdui-icon>
+                  </div>
+                )}
+                <div className="p-4">
                   <h3 className="font-medium">{album.name || album.dir}</h3>
                   <p className="text-sm text-gray-500">
-                    {album.dir} · {album.photo_count} 张照片
+                    {album.photo_count} 张照片
                   </p>
                 </div>
-              </div>
-            </mdui-card>
-          ))}
+              </mdui-card>
+            );
+          })}
         </div>
       )}
     </div>

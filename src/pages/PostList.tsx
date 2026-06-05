@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 interface PostSummary {
@@ -18,6 +18,8 @@ interface Props {
 export function PostList({ blogDir, onEdit }: Props) {
   const [posts, setPosts] = useState<PostSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const dialogRef = useRef<any>(null);
 
   const loadPosts = async () => {
     setLoading(true);
@@ -32,11 +34,23 @@ export function PostList({ blogDir, onEdit }: Props) {
 
   useEffect(() => { loadPosts(); }, [blogDir]);
 
-  const handleDelete = async (filename: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (filename: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`确定删除 "${filename}"？`)) return;
-    await invoke("delete_post", { blogDir, filename });
+    setDeleteTarget(filename);
+    dialogRef.current?.setAttribute("open", "");
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await invoke("delete_post", { blogDir, filename: deleteTarget });
+    setDeleteTarget(null);
+    dialogRef.current?.removeAttribute("open");
     loadPosts();
+  };
+
+  const cancelDelete = () => {
+    setDeleteTarget(null);
+    dialogRef.current?.removeAttribute("open");
   };
 
   const handleCreate = async () => {
@@ -78,12 +92,25 @@ export function PostList({ blogDir, onEdit }: Props) {
               <mdui-button-icon
                 slot="end-icon"
                 icon="delete"
-                onClick={(e: any) => handleDelete(post.filename, e)}
+                onClick={(e: any) => handleDeleteClick(post.filename, e)}
               ></mdui-button-icon>
             </mdui-list-item>
           ))}
         </mdui-list>
       )}
+
+      {/* 删除确认 Dialog */}
+      <mdui-dialog ref={dialogRef} headline="确认删除">
+        <div className="px-6 pb-2">
+          确定要删除「{deleteTarget}」吗？此操作不可撤销。
+        </div>
+        <mdui-button slot="action" variant="text" onClick={cancelDelete}>
+          取消
+        </mdui-button>
+        <mdui-button slot="action" variant="text" onClick={confirmDelete}>
+          删除
+        </mdui-button>
+      </mdui-dialog>
     </div>
   );
 }

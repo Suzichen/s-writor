@@ -87,7 +87,7 @@ export function Settings({ blogDir }: Props) {
             <mdui-divider></mdui-divider>
             <div>
               <p className="font-medium">版本</p>
-              <p className="text-sm text-gray-500">S-Blog Admin v0.2.0</p>
+              <p className="text-sm text-gray-500">s-writor v0.2.0</p>
             </div>
           </div>
         </mdui-card>

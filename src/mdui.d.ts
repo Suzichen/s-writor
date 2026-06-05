@@ -1,51 +1,38 @@
 import "react";
 
+// mdui Web Components 使用原生 class 属性而非 className
+type MduiBase = React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+  class?: string;
+};
+
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "mdui-layout": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-layout-main": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-navigation-drawer": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { open?: boolean; contained?: boolean },
-        HTMLElement
-      >;
-      "mdui-top-app-bar": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-top-app-bar-title": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-list": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-list-item": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & {
-          active?: boolean;
-          icon?: string;
-          headline?: string;
-          description?: string;
-        },
-        HTMLElement
-      >;
-      "mdui-button": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & {
-          variant?: string;
-          loading?: boolean;
-          disabled?: boolean;
-          "full-width"?: boolean;
-          href?: string;
-        },
-        HTMLElement
-      >;
-      "mdui-button-icon": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { icon?: string },
-        HTMLElement
-      >;
-      "mdui-icon": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { name?: string },
-        HTMLElement
-      >;
-      "mdui-card": React.DetailedHTMLProps<
-        React.HTMLAttributes<HTMLElement> & { variant?: string },
-        HTMLElement
-      >;
-      "mdui-linear-progress": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-circular-progress": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      "mdui-divider": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      "mdui-layout": MduiBase;
+      "mdui-layout-main": MduiBase;
+      "mdui-navigation-drawer": MduiBase & { open?: boolean; contained?: boolean };
+      "mdui-top-app-bar": MduiBase;
+      "mdui-top-app-bar-title": MduiBase;
+      "mdui-list": MduiBase;
+      "mdui-list-item": MduiBase & {
+        active?: boolean;
+        icon?: string;
+        headline?: string;
+        description?: string;
+      };
+      "mdui-button": MduiBase & {
+        variant?: string;
+        loading?: boolean;
+        disabled?: boolean;
+        "full-width"?: boolean;
+      };
+      "mdui-button-icon": MduiBase & { icon?: string };
+      "mdui-icon": MduiBase & { name?: string };
+      "mdui-card": MduiBase & { variant?: string };
+      "mdui-linear-progress": MduiBase;
+      "mdui-circular-progress": MduiBase;
+      "mdui-divider": MduiBase;
+      "mdui-dialog": MduiBase & { open?: boolean; headline?: string };
     }
   }
 }

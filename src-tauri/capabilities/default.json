@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capability for S-Blog Admin",
+  "description": "Default capability for s-writor",
   "windows": ["main"],
   "permissions": [
     "core:default",

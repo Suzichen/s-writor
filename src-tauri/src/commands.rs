@@ -144,7 +144,7 @@ pub async fn list_albums(blog_dir: String) -> Result<Vec<AlbumInfo>, String> {
         }
         let photo_count = count_photos(&path);
         // 从配置中查找该相册的 name/cover
-        let (name, cover) = if let Some(arr) = config.get("albums").and_then(|v| v.as_array()) {
+        let (name, mut cover) = if let Some(arr) = config.get("albums").and_then(|v| v.as_array()) {
             arr.iter()
                 .find(|a| a.get("dir").and_then(|d| d.as_str()) == Some(&dir_name))
                 .map(|a| {
@@ -157,6 +157,10 @@ pub async fn list_albums(blog_dir: String) -> Result<Vec<AlbumInfo>, String> {
         } else {
             (None, None)
         };
+        // 没有配置 cover 时用第一张图
+        if cover.is_none() {
+            cover = first_photo(&path);
+        }
         albums.push(AlbumInfo {
             dir: dir_name,
             name,
@@ -250,12 +254,16 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
     }
     let _ = app.emit("log_output", "  ✓ album.config.json");
 
-    let package_json = generate_package_json(&config);
-    fs::write(
-        project_path.join("package.json"),
-        serde_json::to_string_pretty(&package_json).unwrap() + "\n",
-    )
-    .map_err(|e| AppError::FileSystemError(e.to_string()).to_string())?;
+    // 注入 package.json（如果模板有就修改，没有就生成）
+    let pkg_path = project_path.join("package.json");
+    if pkg_path.is_file() {
+        let template_str = fs::read_to_string(&pkg_path).unwrap_or_default();
+        let injected = inject_package_json(&template_str, &config);
+        let _ = fs::write(&pkg_path, injected + "\n");
+    } else {
+        let generated = inject_package_json("{}", &config);
+        let _ = fs::write(&pkg_path, generated + "\n");
+    }
     let _ = app.emit("log_output", "  ✓ package.json");
     let _ = app.emit("log_output", "");
     let _ = app.emit("log_output", "✓ 博客项目初始化完成");
@@ -376,6 +384,26 @@ fn extract_fm_list(fm: &str, key: &str) -> Vec<String> {
     vec![]
 }
 
+/// 解析 JSONC（带注释的 JSON）为 serde_json::Value
+fn parse_jsonc(input: &str) -> serde_json::Value {
+    let stripped = json_comments::StripComments::new(input.as_bytes());
+    serde_json::from_reader(stripped).unwrap_or(serde_json::json!({}))
+}
+
+fn first_photo(path: &Path) -> Option<String> {
+    let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
+    let mut entries: Vec<_> = fs::read_dir(path).ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path().extension()
+                .map(|ext| exts.contains(&ext.to_string_lossy().to_lowercase().as_str()))
+                .unwrap_or(false)
+        })
+        .collect();
+    entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    entries.first().map(|e| e.file_name().to_string_lossy().to_string())
+}
+
 fn count_photos(path: &Path) -> usize {
     let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
     fs::read_dir(path)
@@ -425,14 +453,27 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {
 }
 
 fn inject_config_values(template: &str, config: &BlogConfig) -> String {
-    let mut obj: serde_json::Value = serde_json::from_str(template).unwrap_or_default();
+    let mut obj = parse_jsonc(template);
     let map = obj.as_object_mut().unwrap();
+    // 移除模板占位符
     map.remove("__SCHEMA__");
     map.remove("__SITEURL__");
     map.remove("__AUTHOR__");
-    map.insert("$schema".into(), "https://unpkg.com/@s-blog/core/schemas/config.schema.json".into());
+    // schema 指向本地 node_modules
+    map.insert("$schema".into(), "./node_modules/@s-blog/core/schemas/config.schema.json".into());
+    // 注入用户填写的值
     map.insert("title".into(), config.project_name.clone().into());
     map.insert("description".into(), config.description.clone().into());
+    // 确保必需字段存在
+    if !map.contains_key("logo") {
+        map.insert("logo".into(), "/logo.png".into());
+    }
+    if !map.contains_key("favicon") {
+        map.insert("favicon".into(), "/favicon.ico".into());
+    }
+    if !map.contains_key("language") {
+        map.insert("language".into(), "en".into());
+    }
     if let Some(ref url) = config.site_url {
         if !url.is_empty() {
             map.insert("siteUrl".into(), url.clone().into());
@@ -448,30 +489,51 @@ fn inject_config_values(template: &str, config: &BlogConfig) -> String {
 }
 
 fn inject_album_config_schema(template: &str) -> String {
-    let mut obj: serde_json::Value = serde_json::from_str(template).unwrap_or_default();
+    let mut obj = parse_jsonc(template);
     let map = obj.as_object_mut().unwrap();
     map.remove("__SCHEMA__");
-    map.insert("$schema".into(), "https://unpkg.com/@s-blog/core/schemas/album.config.schema.json".into());
+    map.insert("$schema".into(), "./node_modules/@s-blog/core/schemas/album.config.schema.json".into());
+    if !map.contains_key("enabled") {
+        map.insert("enabled".into(), true.into());
+    }
+    if !map.contains_key("albums") {
+        map.insert("albums".into(), serde_json::json!([{ "dir": "blog" }]));
+    }
     serde_json::to_string_pretty(&obj).unwrap()
 }
 
-fn generate_package_json(config: &BlogConfig) -> serde_json::Value {
-    serde_json::json!({
-        "name": config.project_name,
-        "private": true,
-        "version": "0.0.0",
-        "type": "module",
-        "description": config.description,
-        "author": config.author,
-        "scripts": {
+fn inject_package_json(template: &str, config: &BlogConfig) -> String {
+    let mut obj = parse_jsonc(template);
+    let map = obj.as_object_mut().unwrap();
+    map.insert("name".into(), config.project_name.clone().into());
+    if !map.contains_key("private") {
+        map.insert("private".into(), true.into());
+    }
+    if !map.contains_key("version") {
+        map.insert("version".into(), "0.0.0".into());
+    }
+    if !map.contains_key("type") {
+        map.insert("type".into(), "module".into());
+    }
+    if !config.description.is_empty() {
+        map.insert("description".into(), config.description.clone().into());
+    }
+    if !config.author.is_empty() {
+        map.insert("author".into(), config.author.clone().into());
+    }
+    if !map.contains_key("scripts") {
+        map.insert("scripts".into(), serde_json::json!({
             "dev": "s-blog serve",
             "build": "s-blog build"
-        },
-        "dependencies": {
-            "@s-blog/core": "^0.3.7",
-            "@s-blog/engine": "^0.3.11"
-        }
-    })
+        }));
+    }
+    if !map.contains_key("dependencies") {
+        map.insert("dependencies".into(), serde_json::json!({
+            "@s-blog/core": "latest",
+            "@s-blog/engine": "latest"
+        }));
+    }
+    serde_json::to_string_pretty(&obj).unwrap()
 }
 
 fn read_flat_dir(path: &Path) -> Result<FileNode, String> {

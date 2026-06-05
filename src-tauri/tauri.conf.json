@@ -1,5 +1,5 @@
 {
-  "productName": "S-Blog Admin",
+  "productName": "s-writor",
   "version": "0.1.0",
   "identifier": "com.sblog.admin",
   "build": {
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "S-Blog Admin",
+        "title": "s-writor",
         "width": 1024,
         "height": 768,
         "resizable": true,
@@ -20,7 +20,11 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {

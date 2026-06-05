@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { PostList } from "./pages/PostList";
 import { PostEditor } from "./pages/PostEditor";
 import { Albums } from "./pages/Albums";
 import { Settings } from "./pages/Settings";
+import { InitBlog } from "./pages/InitBlog";
 
 type Page = "posts" | "albums" | "settings";
 
@@ -11,10 +12,10 @@ function App() {
   const [page, setPage] = useState<Page>("posts");
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [blogDir, setBlogDir] = useState<string>("");
+  const [showInit, setShowInit] = useState(false);
 
-  // 启动时尝试加载上次的博客目录
   useEffect(() => {
-    const saved = localStorage.getItem("s-blog-admin-dir");
+    const saved = localStorage.getItem("s-writor-dir");
     if (saved) setBlogDir(saved);
   }, []);
 
@@ -22,22 +23,39 @@ function App() {
     const dir = await invoke<string | null>("select_directory");
     if (dir) {
       setBlogDir(dir);
-      localStorage.setItem("s-blog-admin-dir", dir);
+      localStorage.setItem("s-writor-dir", dir);
     }
   };
 
-  if (!blogDir) {
+  const handleInitComplete = (projectPath: string) => {
+    setBlogDir(projectPath);
+    localStorage.setItem("s-writor-dir", projectPath);
+    setShowInit(false);
+  };
+
+  // 无博客目录：显示选择/初始化入口
+  if (!blogDir && !showInit) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <mdui-card class="p-8 text-center" style={{ maxWidth: 400 }}>
-          <h2 className="text-xl font-medium mb-4">选择博客目录</h2>
-          <p className="text-sm text-gray-600 mb-6">请选择您的 s-blog 项目目录</p>
-          <mdui-button variant="filled" onClick={selectBlogDir}>
-            选择目录
-          </mdui-button>
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <mdui-card class="p-8 text-center" style={{ maxWidth: 420 }}>
+          <h2 className="text-2xl font-medium mb-2">s-writor</h2>
+          <p className="text-sm text-gray-600 mb-6">博客管理桌面应用程序</p>
+          <div className="space-y-3">
+            <mdui-button variant="filled" full-width onClick={selectBlogDir}>
+              选择现有博客目录
+            </mdui-button>
+            <mdui-button variant="outlined" full-width onClick={() => setShowInit(true)}>
+              初始化新博客
+            </mdui-button>
+          </div>
         </mdui-card>
       </div>
     );
+  }
+
+  // 初始化向导
+  if (showInit) {
+    return <InitBlog onComplete={handleInitComplete} onCancel={() => setShowInit(false)} />;
   }
 
   if (editingPost !== null) {
@@ -54,7 +72,7 @@ function App() {
     <mdui-layout>
       <mdui-navigation-drawer open contained>
         <div className="p-4 pb-2">
-          <h1 className="text-lg font-medium">S-Blog Admin</h1>
+          <h1 className="text-lg font-medium">s-writor</h1>
           <p className="text-xs text-gray-500 truncate" title={blogDir}>
             {blogDir.split(/[/\\]/).pop()}
           </p>
@@ -82,7 +100,10 @@ function App() {
             设置
           </mdui-list-item>
         </mdui-list>
-        <div className="mt-auto p-4">
+        <div className="mt-auto p-4 space-y-2">
+          <mdui-button variant="text" full-width onClick={() => setShowInit(true)}>
+            初始化新博客
+          </mdui-button>
           <mdui-button variant="text" full-width onClick={selectBlogDir}>
             切换目录
           </mdui-button>
