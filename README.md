@@ -6,7 +6,7 @@
 
 - 🚀 **初始化博客** - 通过图形化界面创建新的 S-Blog 博客项目
 - 📂 **管理现有博客** - 选择并查看现有博客项目的文件结构
-- ⚡ **Rust 引擎** - 使用 [s-blog-engine](https://github.com/Suzichen/s-blog/blob/master/crates/s-blog-engine/INTEGRATION.md) 纯 Rust 实现，无需外部运行时
+- ⚡ **Rust 驱动** - 使用 [s-blog](https://github.com/Suzichen/s-blog) 系列 Rust crate（scaffold / engine），无需外部运行时
 - 🌐 **在线模板** - 初始化时自动从 npm registry 拉取最新项目模板
 - 🖥️ **跨平台支持** - 支持 Windows 和 macOS 平台
 
@@ -15,7 +15,8 @@
 - **桌面框架**: Tauri 2.x（Rust 后端 + WebView 前端）
 - **前端**: React 18 + TypeScript + Vite
 - **样式**: Tailwind CSS
-- **初始化引擎**: s-blog-engine（Rust crate，处理博客构建和数据生成）
+- **初始化引擎**: s-blog-scaffold（Rust crate，项目脚手架生成）
+- **构建引擎**（计划中）: s-blog-engine（Rust crate，博客构建和数据生成）
 
 ## 环境要求
 
@@ -129,16 +130,25 @@ s-writor/
 1. **在线获取**（首选）：从 npm registry 下载最新 `create-s-blog` 包，提取模板文件
 2. **离线回退**：如果网络不可用，使用本地 `src-tauri/resources/template/` 中的缓存模板
 
-### s-blog-engine 集成
+### s-blog crate 集成
 
-通过 Cargo git 依赖引入 `s-blog-engine` crate，提供：
+通过 Cargo git 依赖引入 [s-blog](https://github.com/Suzichen/s-blog) 仓库中的 crate：
 
-- 博客文章 frontmatter 解析
-- 相册数据生成与缩略图处理
-- SEO 页面 / Sitemap / RSS 生成
-- 完整构建管线
+**当前已集成：**
 
-开发时可在 `Cargo.toml` 底部取消 `[patch]` 注释，指向本地 s-blog 仓库进行联调。
+- `s-blog-scaffold` — 博客项目脚手架生成（目录结构、配置文件模板渲染）
+
+**计划集成：**
+
+- `s-blog-engine` — 完整博客构建管线（frontmatter 解析、相册处理、SEO / Sitemap / RSS 生成）
+
+开发时如需联调本地 s-blog 仓库，可在 `Cargo.toml` 末尾添加 `[patch]` 段：
+
+```toml
+[patch."https://github.com/Suzichen/s-blog.git"]
+s-blog-scaffold = { path = "../s-blog/crates/s-blog-scaffold" }
+# s-blog-engine = { path = "../s-blog/crates/s-blog-engine" }
+```
 
 ## TODO
 

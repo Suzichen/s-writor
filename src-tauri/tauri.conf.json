@@ -1,7 +1,7 @@
 {
   "productName": "s-writor",
   "version": "0.1.0",
-  "identifier": "com.sblog.admin",
+  "identifier": "com.swritor.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",

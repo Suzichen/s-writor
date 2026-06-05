@@ -202,71 +202,58 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
     if project_path.exists() {
         return Err(AppError::DirectoryAlreadyExists(config.project_name.clone()).to_string());
     }
-    fs::create_dir_all(&project_path)
-        .map_err(|e| AppError::FileSystemError(e.to_string()).to_string())?;
 
     let _ = app.emit("log_output", "正在获取模板...");
-    let fetch_result = crate::template_fetcher::fetch_template(&project_path).await;
 
-    match &fetch_result {
+    // 尝试在线下载模板到临时目录
+    let temp_dir = std::env::temp_dir().join(format!("s-writor-template-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
+
+    let template_dir = match crate::template_fetcher::fetch_template(&temp_dir).await {
         Ok(_) => {
             let _ = app.emit("log_output", "  ✓ 从 npm 获取最新模板成功");
+            temp_dir.display().to_string()
         }
         Err(e) => {
             let _ = app.emit("log_output", &format!("  ⚠ 在线获取失败: {e}"));
             let _ = app.emit("log_output", "  → 使用内嵌模板...");
-            let template_dir = get_fallback_template_dir(&app);
-            match template_dir {
-                Some(dir) => {
-                    let _ = fs::remove_dir_all(&project_path);
-                    fs::create_dir_all(&project_path)
-                        .map_err(|e| AppError::FileSystemError(e.to_string()).to_string())?;
-                    copy_dir_recursive(&dir, &project_path)
-                        .map_err(|e| AppError::FileSystemError(e.to_string()).to_string())?;
-                    let _ = app.emit("log_output", "  ✓ 内嵌模板已复制");
-                }
-                None => {
-                    let _ = fs::remove_dir_all(&project_path);
-                    return Err("无法获取模板：在线下载失败且无内嵌模板".to_string());
-                }
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            match get_fallback_template_dir(&app) {
+                Some(dir) => dir.display().to_string(),
+                None => return Err("无法获取模板：在线下载失败且无内嵌模板".to_string()),
             }
+        }
+    };
+
+    let _ = app.emit("log_output", "正在生成项目...");
+
+    let input = s_blog_scaffold::ScaffoldInput {
+        target_dir: project_path.display().to_string(),
+        template_dir,
+        name: config.project_name.clone(),
+        description: config.description,
+        author: config.author,
+        site_url: config.site_url,
+        timezone: if config.timezone.is_empty() { None } else { Some(config.timezone) },
+    };
+
+    match s_blog_scaffold::scaffold(&input) {
+        Ok(_) => {
+            let _ = app.emit("log_output", "  ✓ config.json");
+            let _ = app.emit("log_output", "  ✓ album.config.json");
+            let _ = app.emit("log_output", "  ✓ package.json");
+            let _ = app.emit("log_output", "");
+            let _ = app.emit("log_output", "✓ 博客项目初始化完成");
+        }
+        Err(e) => {
+            s_blog_scaffold::cleanup(&project_path.display().to_string());
+            return Err(format!("初始化失败: {e}"));
         }
     }
 
-    let gitignore_src = project_path.join("_gitignore");
-    if gitignore_src.exists() {
-        let _ = fs::rename(&gitignore_src, project_path.join(".gitignore"));
-    }
-
-    let config_path = project_path.join("config.json");
-    if config_path.exists() {
-        let template_str = fs::read_to_string(&config_path).unwrap_or_default();
-        let injected = inject_config_values(&template_str, &config);
-        let _ = fs::write(&config_path, injected + "\n");
-    }
-    let _ = app.emit("log_output", "  ✓ config.json");
-
-    let album_config_path = project_path.join("album.config.json");
-    if album_config_path.exists() {
-        let template_str = fs::read_to_string(&album_config_path).unwrap_or_default();
-        let injected = inject_album_config_schema(&template_str);
-        let _ = fs::write(&album_config_path, injected + "\n");
-    }
-    let _ = app.emit("log_output", "  ✓ album.config.json");
-
-    // 注入 package.json（如果模板有就修改，没有就生成）
-    let pkg_path = project_path.join("package.json");
-    if pkg_path.is_file() {
-        let template_str = fs::read_to_string(&pkg_path).unwrap_or_default();
-        let injected = inject_package_json(&template_str, &config);
-        let _ = fs::write(&pkg_path, injected + "\n");
-    } else {
-        let generated = inject_package_json("{}", &config);
-        let _ = fs::write(&pkg_path, generated + "\n");
-    }
-    let _ = app.emit("log_output", "  ✓ package.json");
-    let _ = app.emit("log_output", "");
-    let _ = app.emit("log_output", "✓ 博客项目初始化完成");
+    // 清理临时目录
+    let _ = std::fs::remove_dir_all(std::env::temp_dir().join(format!("s-writor-template-{}", std::process::id())));
 
     Ok(InitResult {
         success: true,
@@ -384,12 +371,6 @@ fn extract_fm_list(fm: &str, key: &str) -> Vec<String> {
     vec![]
 }
 
-/// 解析 JSONC（带注释的 JSON）为 serde_json::Value
-fn parse_jsonc(input: &str) -> serde_json::Value {
-    let stripped = json_comments::StripComments::new(input.as_bytes());
-    serde_json::from_reader(stripped).unwrap_or(serde_json::json!({}))
-}
-
 fn first_photo(path: &Path) -> Option<String> {
     let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
     let mut entries: Vec<_> = fs::read_dir(path).ok()?
@@ -435,105 +416,6 @@ fn get_fallback_template_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
         return Some(p);
     }
     None
-}
-
-fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(dest)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dest_path = dest.join(entry.file_name());
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dest_path)?;
-        } else {
-            fs::copy(&src_path, &dest_path)?;
-        }
-    }
-    Ok(())
-}
-
-fn inject_config_values(template: &str, config: &BlogConfig) -> String {
-    let mut obj = parse_jsonc(template);
-    let map = obj.as_object_mut().unwrap();
-    // 移除模板占位符
-    map.remove("__SCHEMA__");
-    map.remove("__SITEURL__");
-    map.remove("__AUTHOR__");
-    // schema 指向本地 node_modules
-    map.insert("$schema".into(), "./node_modules/@s-blog/core/schemas/config.schema.json".into());
-    // 注入用户填写的值
-    map.insert("title".into(), config.project_name.clone().into());
-    map.insert("description".into(), config.description.clone().into());
-    // 确保必需字段存在
-    if !map.contains_key("logo") {
-        map.insert("logo".into(), "/logo.png".into());
-    }
-    if !map.contains_key("favicon") {
-        map.insert("favicon".into(), "/favicon.ico".into());
-    }
-    if !map.contains_key("language") {
-        map.insert("language".into(), "en".into());
-    }
-    if let Some(ref url) = config.site_url {
-        if !url.is_empty() {
-            map.insert("siteUrl".into(), url.clone().into());
-        }
-    }
-    if !config.author.is_empty() {
-        map.insert("author".into(), config.author.clone().into());
-    }
-    if !config.timezone.is_empty() {
-        map.insert("timezone".into(), config.timezone.clone().into());
-    }
-    serde_json::to_string_pretty(&obj).unwrap()
-}
-
-fn inject_album_config_schema(template: &str) -> String {
-    let mut obj = parse_jsonc(template);
-    let map = obj.as_object_mut().unwrap();
-    map.remove("__SCHEMA__");
-    map.insert("$schema".into(), "./node_modules/@s-blog/core/schemas/album.config.schema.json".into());
-    if !map.contains_key("enabled") {
-        map.insert("enabled".into(), true.into());
-    }
-    if !map.contains_key("albums") {
-        map.insert("albums".into(), serde_json::json!([{ "dir": "blog" }]));
-    }
-    serde_json::to_string_pretty(&obj).unwrap()
-}
-
-fn inject_package_json(template: &str, config: &BlogConfig) -> String {
-    let mut obj = parse_jsonc(template);
-    let map = obj.as_object_mut().unwrap();
-    map.insert("name".into(), config.project_name.clone().into());
-    if !map.contains_key("private") {
-        map.insert("private".into(), true.into());
-    }
-    if !map.contains_key("version") {
-        map.insert("version".into(), "0.0.0".into());
-    }
-    if !map.contains_key("type") {
-        map.insert("type".into(), "module".into());
-    }
-    if !config.description.is_empty() {
-        map.insert("description".into(), config.description.clone().into());
-    }
-    if !config.author.is_empty() {
-        map.insert("author".into(), config.author.clone().into());
-    }
-    if !map.contains_key("scripts") {
-        map.insert("scripts".into(), serde_json::json!({
-            "dev": "s-blog serve",
-            "build": "s-blog build"
-        }));
-    }
-    if !map.contains_key("dependencies") {
-        map.insert("dependencies".into(), serde_json::json!({
-            "@s-blog/core": "latest",
-            "@s-blog/engine": "latest"
-        }));
-    }
-    serde_json::to_string_pretty(&obj).unwrap()
 }
 
 fn read_flat_dir(path: &Path) -> Result<FileNode, String> {
