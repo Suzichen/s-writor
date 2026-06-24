@@ -43,18 +43,17 @@ jobs:
         run: npm ci
 
       - name: Extract changelog for current version
-        id: changelog
         shell: bash
         run: |
           TAG="${GITHUB_REF_NAME}"
-          # Extract content between current version header and next version header (or EOF)
-          BODY=$(sed -n "/^## \[${TAG}\]/,/^## \[/{/^## \[${TAG}\]/d;/^## \[/d;p}" CHANGELOG.md)
-          # If empty, fallback
-          if [ -z "$BODY" ]; then
-            BODY="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+          awk -v tag="$TAG" '
+            /^## \[/ { if (found) exit; if (index($0, tag)) found=1; next }
+            found { print }
+          ' CHANGELOG.md > /tmp/release_body.md
+          # Fallback if empty
+          if [ ! -s /tmp/release_body.md ]; then
+            echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." > /tmp/release_body.md
           fi
-          # Write to file for multiline support
-          echo "$BODY" > /tmp/release_body.md
 
       - name: Build and release
         uses: tauri-apps/tauri-action@v0

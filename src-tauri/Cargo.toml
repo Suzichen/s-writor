@@ -1,6 +1,6 @@
 [package]
 name = "s-writor"
-version = "0.1.0"
+version = "0.2.0"
 description = "S-Writor - 创作•管理•分享"
 authors = ["S-Blog Team"]
 edition = "2021"
