@@ -10,6 +10,18 @@
 - 🌐 **在线模板** - 初始化时自动从 npm registry 拉取最新项目模板
 - 🖥️ **跨平台支持** - 支持 Windows 和 macOS 平台
 
+
+## 界面截图
+
+![初始界面](https://img.s-blog.me/s-writor/20260615/Snipaste_0.png "初始界面")
+
+![初始界面2](https://img.s-blog.me/s-writor/20260615/Snipaste_7.png "初始界面2")
+
+![文章管理](https://img.s-blog.me/s-writor/20260615/Snipaste_4.png "文章管理")
+
+![设置界面](https://img.s-blog.me/s-writor/20260615/Snipaste_9.png "设置界面")
+
+
 ## 技术栈
 
 - **桌面框架**: Tauri 2.x（Rust 后端 + WebView 前端）
