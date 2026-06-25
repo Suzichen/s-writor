@@ -27,8 +27,8 @@
 - **桌面框架**: Tauri 2.x（Rust 后端 + WebView 前端）
 - **前端**: React 18 + TypeScript + Vite
 - **样式**: Tailwind CSS
-- **初始化引擎**: s-blog-scaffold（Rust crate，项目脚手架生成）
-- **构建引擎**（计划中）: s-blog-engine（Rust crate，博客构建和数据生成）
+- **初始化引擎**: s-blog-scaffold（Rust crate，项目脚手架生成，依赖自s-blog）
+- **构建引擎**: s-blog-engine（Rust crate，博客构建和数据生成，依赖自s-blog）
 
 ## 环境要求
 
@@ -183,7 +183,7 @@ s-blog-engine = { path = "../s-blog/crates/s-blog-engine" }
 
 1. 点击「选择现有博客」按钮
 2. 选择已有的博客项目目录
-3. 查看项目文件结构和日志信息
+3. 尽情地享受吧！
 
 ## 许可证
 
